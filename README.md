@@ -206,13 +206,8 @@ Expected performance on campus Wi-Fi:
 - Future: SDN integration for automatic mitigation
 - Future: Federated learning for privacy-preserving detection
 
-## License
 
-MIT License
 
-## Authors
-
-Your Team Name
 
 ## Acknowledgments
 

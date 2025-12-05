@@ -235,16 +235,38 @@ const Dashboard: React.FC = () => {
                         <div className="text-center py-20 text-slate-400 font-mono">
                             <ServerOff className="w-16 h-16 mx-auto mb-4 opacity-30 text-yellow-500" />
                             {!isConnected ? (
-                                <div className="space-y-2">
-                                    <p className="text-yellow-500 text-lg font-bold">NETWORK NOT CONNECTED</p>
-                                    <p className="text-slate-500 text-sm">Backend server is not running or not accessible</p>
-                                    <div className="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-left max-w-md mx-auto">
-                                        <p className="text-xs text-yellow-400 mb-2">To connect:</p>
-                                        <ol className="text-xs text-slate-400 space-y-1 list-decimal list-inside">
-                                            <li>Start the Flask backend: <code className="text-cyan-400">sudo python3 server.py</code></li>
-                                            <li>Ensure backend is running on <code className="text-cyan-400">http://127.0.0.1:5000</code></li>
-                                            <li>Grant local network permission if prompted</li>
+                                <div className="space-y-3">
+                                    <p className="text-yellow-500 text-lg font-bold">BACKEND SERVER NOT CONNECTED</p>
+                                    <p className="text-slate-500 text-sm max-w-lg mx-auto">
+                                        The SmartShield backend server is required to capture and analyze network packets. 
+                                        The backend must run locally on your machine with network access permissions.
+                                    </p>
+                                    <div className="mt-6 p-5 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-left max-w-2xl mx-auto">
+                                        <p className="text-sm text-yellow-400 mb-3 font-bold">📋 Setup Instructions:</p>
+                                        <ol className="text-xs text-slate-300 space-y-2 list-decimal list-inside">
+                                            <li className="mb-2">
+                                                <span className="font-semibold text-yellow-400">Install dependencies:</span>
+                                                <code className="block mt-1 p-2 bg-black/40 rounded text-cyan-400 font-mono">python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt</code>
+                                            </li>
+                                            <li className="mb-2">
+                                                <span className="font-semibold text-yellow-400">Start the backend server:</span>
+                                                <code className="block mt-1 p-2 bg-black/40 rounded text-cyan-400 font-mono">sudo python3 server.py</code>
+                                                <span className="block mt-1 text-slate-500 text-[10px]">Note: Requires root/admin privileges for packet capture</span>
+                                            </li>
+                                            <li className="mb-2">
+                                                <span className="font-semibold text-yellow-400">Verify backend is running:</span>
+                                                <code className="block mt-1 p-2 bg-black/40 rounded text-cyan-400 font-mono">http://127.0.0.1:5000/packets</code>
+                                            </li>
+                                            <li>
+                                                <span className="font-semibold text-yellow-400">Grant permission:</span> If accessing from a hosted link, grant local network permission when prompted by your browser
+                                            </li>
                                         </ol>
+                                        <div className="mt-4 pt-4 border-t border-yellow-500/20">
+                                            <p className="text-[10px] text-slate-500">
+                                                💡 <span className="text-yellow-400">Tip:</span> The backend must run on the same machine where you want to monitor network traffic. 
+                                                For remote access, consider deploying the backend to a cloud service or using a VPN tunnel.
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
                             ) : (

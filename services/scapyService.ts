@@ -1,14 +1,19 @@
 import { Packet, Protocol, RiskLevel } from '../types';
 
-// Backend API URL - always attempt to connect to local backend
-// Users will be prompted for local network permission if accessing from hosted link
+// Backend API URL - configurable via environment variable or defaults to localhost
+// For hosted deployments, set VITE_BACKEND_URL environment variable
 const getBackendURL = (): string => {
-  // Check for environment variable (for custom backend URLs)
-  if (typeof window !== 'undefined' && (window as any).__BACKEND_URL__) {
-    return (window as any).__BACKEND_URL__;
+  // Check for Vite environment variable (set during build)
+  if (import.meta.env.VITE_BACKEND_URL) {
+    return `${import.meta.env.VITE_BACKEND_URL}/packets`;
   }
   
-  // Default to localhost backend
+  // Check for window global variable (for runtime configuration)
+  if (typeof window !== 'undefined' && (window as any).__BACKEND_URL__) {
+    return `${(window as any).__BACKEND_URL__}/packets`;
+  }
+  
+  // Default to localhost backend (for local development)
   return 'http://127.0.0.1:5000/packets';
 };
 

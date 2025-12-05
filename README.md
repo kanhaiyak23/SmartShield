@@ -144,11 +144,58 @@ To train the Random Forest model on real network data (UNSW-NB15):
 
 The model files will be automatically loaded by the server on startup.
 
+## 🧪 Attack Simulation & Testing
+
+To test the system's real-time attack detection capabilities:
+
+### Quick Demo
+
+1. **Start the SmartShield backend:**
+   ```bash
+   sudo python3 server.py
+   ```
+
+2. **Open the dashboard** (hosted link or `npm run dev`)
+
+3. **Run attack simulator** (in another terminal):
+   ```bash
+   sudo python3 attack_simulator.py
+   # Choose option 5 for full demo sequence
+   ```
+
+4. **Watch real-time detection** in the dashboard!
+
+### Available Attack Types
+
+- **Port Scan** - Rapid reconnaissance scanning
+- **DDoS Flood** - High packet rate flooding
+- **SQL Injection** - Malicious HTTP payloads
+- **Suspicious Port Scan** - Unusual port combinations
+- **ICMP Flood** - Ping flood attacks
+- **Full Demo Sequence** - All attacks in sequence
+- **Continuous Random** - Random attacks for extended testing
+
+### Command Line Usage
+
+```bash
+# Run specific attack
+sudo python3 attack_simulator.py --attack 1 --duration 10
+
+# Run demo sequence
+sudo python3 attack_simulator.py --attack 5
+
+# Continuous random attacks
+sudo python3 attack_simulator.py --attack 6
+```
+
+**⚠️ Safety:** The simulator defaults to `127.0.0.1` (localhost) for safe testing. Only use on authorized networks.
+
 ## 📁 Project Structure
 
 ```
 smartshield/
 ├── server.py                 # Flask backend with Scapy packet capture
+├── attack_simulator.py       # Attack simulation for testing/demo
 ├── train_enhanced_rf.py      # Random Forest training script
 ├── evaluate_rf_model.py      # Model evaluation script
 ├── random_forest_model.joblib # Trained model (76 MB)

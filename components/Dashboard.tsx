@@ -232,9 +232,27 @@ const Dashboard: React.FC = () => {
                         </div>
                     ))}
                     {packets.length === 0 && (
-                        <div className="text-center py-20 text-slate-600 font-mono animate-pulse">
-                            <Network className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                            {isConnected ? 'LISTENING_FOR_TRAFFIC...' : 'INITIALIZING SCAPY SOCKET...'}
+                        <div className="text-center py-20 text-slate-400 font-mono">
+                            <ServerOff className="w-16 h-16 mx-auto mb-4 opacity-30 text-yellow-500" />
+                            {!isConnected ? (
+                                <div className="space-y-2">
+                                    <p className="text-yellow-500 text-lg font-bold">NETWORK NOT CONNECTED</p>
+                                    <p className="text-slate-500 text-sm">Backend server is not running or not accessible</p>
+                                    <div className="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-left max-w-md mx-auto">
+                                        <p className="text-xs text-yellow-400 mb-2">To connect:</p>
+                                        <ol className="text-xs text-slate-400 space-y-1 list-decimal list-inside">
+                                            <li>Start the Flask backend: <code className="text-cyan-400">sudo python3 server.py</code></li>
+                                            <li>Ensure backend is running on <code className="text-cyan-400">http://127.0.0.1:5000</code></li>
+                                            <li>Grant local network permission if prompted</li>
+                                        </ol>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div>
+                                    <Network className="w-12 h-12 mx-auto mb-4 opacity-20 animate-pulse" />
+                                    <p>LISTENING_FOR_TRAFFIC...</p>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

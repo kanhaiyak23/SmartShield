@@ -620,6 +620,8 @@ def health():
 
 
 if __name__ == '__main__':
+    import os
+    
     print("=" * 60)
     print("SmartShield - Flask Backend Server")
     print("=" * 60)
@@ -631,24 +633,40 @@ if __name__ == '__main__':
         print(f"Anomaly Detection: ⚠️  SIMULATION MODE")
         print("   Run 'python3 train_enhanced_rf.py' to train Random Forest model")
     print("=" * 60)
-    print("Starting packet capture...")
-    print("Note: Requires root/admin privileges for packet capture")
-    print("=" * 60)
     
-    # Start packet capture
-    capture_thread = start_capture()
+    # Check if running on cloud (Render, Heroku, etc.)
+    is_cloud = os.environ.get('RENDER') or os.environ.get('DYNO') or os.environ.get('PORT')
     
-    # Give capture thread a moment to start
-    time.sleep(1)
+    if not is_cloud:
+        print("Starting packet capture...")
+        print("Note: Requires root/admin privileges for packet capture")
+        print("=" * 60)
+        
+        # Start packet capture (only on local/self-hosted)
+        try:
+            capture_thread = start_capture()
+            time.sleep(1)
+        except Exception as e:
+            print(f"⚠️  Warning: Packet capture failed: {e}")
+            print("   Server will run but won't capture packets")
+    else:
+        print("⚠️  Cloud deployment detected - Packet capture disabled")
+        print("   Cloud services don't support raw packet capture")
+        print("=" * 60)
+    
+    # Get port from environment (Render/Heroku) or default to 5000
+    port = int(os.environ.get('PORT', 5000))
+    host = '0.0.0.0' if is_cloud else '127.0.0.1'
     
     # Run Flask server
-    print(f"\nServer running on http://127.0.0.1:5000")
-    print(f"API endpoint: http://127.0.0.1:5000/packets")
-    print(f"Status endpoint: http://127.0.0.1:5000/status")
-    print("\nPress Ctrl+C to stop\n")
+    print(f"\nServer running on http://{host}:{port}")
+    print(f"API endpoint: http://{host}:{port}/packets")
+    print(f"Status endpoint: http://{host}:{port}/status")
+    if not is_cloud:
+        print("\nPress Ctrl+C to stop\n")
     
     try:
-        app.run(host='127.0.0.1', port=5000, debug=False, threaded=True)
+        app.run(host=host, port=port, debug=False, threaded=True)
     except KeyboardInterrupt:
         print("\nShutting down...")
         is_capturing = False

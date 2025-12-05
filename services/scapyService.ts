@@ -1,6 +1,31 @@
 import { Packet, Protocol, RiskLevel } from '../types';
 
-const API_URL = 'http://127.0.0.1:5000/packets';
+// Determine if we should try to connect to local backend
+// Only attempt connection if:
+// 1. We're on localhost/127.0.0.1 (same origin)
+// 2. Or explicitly configured via environment variable
+const isLocalhost = typeof window !== 'undefined' && 
+  (window.location.hostname === 'localhost' || 
+   window.location.hostname === '127.0.0.1' ||
+   window.location.hostname === '');
+
+// Get backend URL from environment or use localhost only if we're on localhost
+const getBackendURL = (): string | null => {
+  // Check for environment variable (for production deployments)
+  if (typeof window !== 'undefined' && (window as any).__BACKEND_URL__) {
+    return (window as any).__BACKEND_URL__;
+  }
+  
+  // Only use localhost if we're actually on localhost
+  if (isLocalhost) {
+    return 'http://127.0.0.1:5000/packets';
+  }
+  
+  // For hosted/production, return null to skip fetch attempt
+  return null;
+};
+
+const API_URL = getBackendURL();
 
 // --- HELPERS ---
 const randomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
@@ -160,6 +185,12 @@ export const generateMockPacket = (): Packet => {
 };
 
 export const pollPacketStream = async (): Promise<{ packets: Packet[], connected: boolean }> => {
+  // If no API URL (hosted/production), immediately return mock data
+  // This prevents browser permission prompts for localhost access
+  if (!API_URL) {
+    return { packets: [generateMockPacket()], connected: false };
+  }
+
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 500);
@@ -182,6 +213,7 @@ export const pollPacketStream = async (): Promise<{ packets: Packet[], connected
     return { packets: [], connected: true };
 
   } catch (error) {
+    // Silently fall back to mock data on any error
     return { packets: [generateMockPacket()], connected: false };
   }
 };

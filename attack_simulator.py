@@ -8,11 +8,9 @@ from scapy.all import *
 import time
 import random
 import threading
-import sys
-import os
-
+import socket
 # Configuration
-TARGET_IP = "127.0.0.1"  # Localhost for safe testing
+TARGET_IP = "127.0.0.1"  # Target Localhost to ensure capture on lo0
 INTERFACE = None  # Auto-detect
 
 class AttackSimulator:
@@ -20,6 +18,49 @@ class AttackSimulator:
         self.target_ip = target_ip
         self.interface = interface
         self.running = False
+
+    def get_safe_ip(self):
+        """Fixed IP for the 'Good Guy' User in the demo"""
+        return "100.1.1.1"
+
+    def get_attacker_ip(self):
+        """Fixed IP for the 'Bad Guy' Attacker in the demo"""
+        return "200.1.1.1"
+
+    def get_random_ip(self):
+        """For the demo, we always return the Bad Guy IP to make it easy to filter"""
+        return self.get_attacker_ip()
+        
+    def simulate_normal_traffic(self, duration=10):
+        """Simulate perfectly normal, safe HTTP/HTTPS traffic"""
+        print(f"[DEMO] 🟢 Generating Normal/Safe Traffic (User Browsing) for {duration}s...")
+        start_time = time.time()
+        packet_count = 0
+        safe_ip = self.get_safe_ip()
+        
+        verbs = ["GET", "POST", "HEAD"]
+        paths = ["/index.html", "/style.css", "/images/logo.png", "/api/v1/status", "/about"]
+        
+        while time.time() - start_time < duration and self.running:
+            # Randomize slightly to look organic
+            verb = random.choice(verbs)
+            path = random.choice(paths)
+            user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
+            
+            payload = f"{verb} {path} HTTP/1.1\r\nHost: example.com\r\nUser-Agent: {user_agent}\r\n\r\n"
+            
+            # Safe traffic uses HTTPS (443) or HTTP (80) with benign flags
+            packet = IP(src=safe_ip, dst=self.target_ip, ttl=64) / \
+                     TCP(dport=random.choice([80, 443]), sport=random.randint(49152, 65535), 
+                         flags="PA", seq=random.randint(1000, 99999)) / \
+                     Raw(load=payload)
+            
+            send(packet, verbose=0, iface=self.interface)
+            packet_count += 1
+            # Normal browsing speed (not too fast)
+            time.sleep(random.uniform(0.1, 0.3))
+            
+        print(f"[DEMO] ✅ Normal Traffic phase completed - {packet_count} packets from {safe_ip}")
         
     def port_scan_attack(self, duration=10):
         """Simulate port scanning - rapid connections to multiple ports"""
@@ -28,17 +69,20 @@ class AttackSimulator:
         
         start_time = time.time()
         packet_count = 0
+        attacker_ip = self.get_random_ip() # Use one IP for the scan session
+        
         while time.time() - start_time < duration and self.running:
             for port in ports:
                 # SYN scan pattern - typical reconnaissance attack
-                packet = IP(dst=self.target_ip, ttl=random.randint(50, 64)) / \
+                packet = IP(src=attacker_ip, dst=self.target_ip, ttl=random.randint(50, 64)) / \
                          TCP(dport=port, sport=random.randint(49152, 65535), flags="S", 
-                             seq=random.randint(1000000, 9999999), window=random.randint(1000, 65535))
+                             seq=random.randint(1000000, 9999999), window=random.randint(1000, 65535)) / \
+                         Raw(load="SMARTSHIELD_ATTACK")
                 send(packet, verbose=0, iface=self.interface)
                 packet_count += 1
                 time.sleep(0.01)  # Rapid scanning
             time.sleep(0.1)
-        print(f"[ATTACK] ✅ Port Scan Attack completed - {packet_count} packets sent")
+        print(f"[ATTACK] ✅ Port Scan Attack completed - {packet_count} packets sent from {attacker_ip}")
     
     def ddos_flood_attack(self, duration=5):
         """Simulate DDoS - high packet rate flooding"""
@@ -48,13 +92,15 @@ class AttackSimulator:
         
         while time.time() - start_time < duration and self.running:
             # Flood with TCP SYN packets - high rate
-            packet = IP(dst=self.target_ip, ttl=random.randint(50, 64), 
+            # Use random IPs for DDoS (distributed)
+            packet = IP(src=self.get_random_ip(), dst=self.target_ip, ttl=random.randint(50, 64), 
                        len=random.randint(40, 1500)) / \
                      TCP(dport=random.randint(80, 8080), 
                          sport=random.randint(49152, 65535),
                          flags="S", 
                          seq=random.randint(1000, 999999),
-                         window=random.randint(1000, 65535))
+                         window=random.randint(1000, 65535)) / \
+                     Raw(load="SMARTSHIELD_ATTACK")
             send(packet, verbose=0, iface=self.interface)
             packet_count += 1
             if packet_count % 100 == 0:
@@ -81,8 +127,9 @@ class AttackSimulator:
         while time.time() - start_time < duration and self.running:
             payload = random.choice(malicious_payloads)
             # Create HTTP-like packet with malicious payload
-            http_payload = f"GET /login.php?user={payload} HTTP/1.1\r\nHost: {self.target_ip}\r\nUser-Agent: Mozilla/5.0\r\n\r\n"
-            packet = IP(dst=self.target_ip, ttl=64, len=len(http_payload) + 40) / \
+            attacker_ip = self.get_random_ip()
+            http_payload = f"GET /login.php?user={payload} HTTP/1.1\r\nX-Signature: SMARTSHIELD_ATTACK\r\nHost: {self.target_ip}\r\nUser-Agent: Mozilla/5.0\r\n\r\n"
+            packet = IP(src=attacker_ip, dst=self.target_ip, ttl=64, len=len(http_payload) + 40) / \
                      TCP(dport=80, sport=random.randint(49152, 65535), flags="PA", 
                          seq=random.randint(1000000, 9999999)) / \
                      Raw(load=http_payload)
@@ -99,9 +146,10 @@ class AttackSimulator:
         start_time = time.time()
         packet_count = 0
         while time.time() - start_time < duration and self.running:
+            attacker_ip = self.get_random_ip()
             for port in suspicious_ports:
                 # Unusual TTL values and window sizes
-                packet = IP(dst=self.target_ip, ttl=random.randint(100, 255)) / \
+                packet = IP(src=attacker_ip, dst=self.target_ip, ttl=random.randint(100, 255)) / \
                          TCP(dport=port, sport=random.randint(49152, 65535),
                              flags="S", 
                              seq=random.randint(1000000, 9999999),
@@ -139,7 +187,7 @@ class AttackSimulator:
         
         while time.time() - start_time < duration and self.running:
             # ICMP echo request flood
-            packet = IP(dst=self.target_ip, ttl=64) / \
+            packet = IP(src=self.get_random_ip(), dst=self.target_ip, ttl=64) / \
                      ICMP(type=8, code=0) / \
                      Raw(load=b"X" * random.randint(32, 1024))
             send(packet, verbose=0, iface=self.interface)

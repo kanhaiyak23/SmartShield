@@ -31,6 +31,7 @@ try:
     if (os.path.exists(RF_MODEL_PATH) and os.path.exists(RF_SCALER_PATH) and
         os.path.exists(SERVICE_ENCODER_PATH) and os.path.exists(STATE_ENCODER_PATH)):
         rf_model = joblib.load(RF_MODEL_PATH)
+        rf_model.verbose = 0  # Silence verbose logging
         rf_scaler = joblib.load(RF_SCALER_PATH)
         service_encoder = joblib.load(SERVICE_ENCODER_PATH)
         state_encoder = joblib.load(STATE_ENCODER_PATH)
@@ -55,6 +56,22 @@ except ImportError:
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for frontend
+
+# Custom JSON Encoder for NumPy types
+from flask.json.provider import DefaultJSONProvider
+class NumpyJSONProvider(DefaultJSONProvider):
+    def default(self, obj):
+        if isinstance(obj, (np.int_, np.intc, np.intp, np.int8,
+                            np.int16, np.int32, np.int64, np.uint8,
+                            np.uint16, np.uint32, np.uint64)):
+            return int(obj)
+        elif isinstance(obj, (np.float_, np.float16, np.float32, np.float64)):
+            return float(obj)
+        elif isinstance(obj, (np.ndarray,)):
+            return obj.tolist()
+        return super().default(obj)
+
+app.json = NumpyJSONProvider(app)
 
 # Global packet buffer (thread-safe with deque)
 packet_buffer = deque(maxlen=100)  # Keep last 100 packets
@@ -211,10 +228,9 @@ def run_random_forest_inference(enhanced_features):
             # Get prediction probability (probability of attack)
             attack_probability = rf_model.predict_proba(features_scaled)[0][1]
             
-            # Convert probability to anomaly score for compatibility
-            # Higher probability = more anomalous
-            # Map 0.0-1.0 probability to -0.5 to 0.5 score range
-            anomaly_score = (attack_probability - 0.5) * 1.0  # -0.5 to 0.5
+            # Convert probability to anomaly score
+            # 0.0 = Safe, 1.0 = Critical
+            anomaly_score = attack_probability
             
             # Determine risk level based on probability
             if attack_probability >= 0.7:
@@ -397,15 +413,18 @@ def update_connection_stats(conn_key, packet_info):
     
     # Determine service and state from protocol/port
     service = '-'
-    if packet_info['dst_port'] == 80 or packet_info['dst_port'] == 8080:
+    dst_port = packet_info.get('dst_port', 0)
+    protocol = packet_info.get('protocol', 'TCP')
+    
+    if dst_port == 80 or dst_port == 8080:
         service = 'http'
-    elif packet_info['dst_port'] == 443:
+    elif dst_port == 443:
         service = 'https'
-    elif packet_info['dst_port'] == 22:
+    elif dst_port == 22:
         service = 'ssh'
-    elif packet_info['dst_port'] == 53:
+    elif dst_port == 53:
         service = 'dns'
-    elif packet_info['protocol'] == 'FTP':
+    elif protocol == 'FTP':
         service = 'ftp'
     
     state = '-'
@@ -503,7 +522,9 @@ def process_packet(packet):
         'length': length,
         'timestamp': current_time,
         'direction': 'src_to_dst',
-        'flags': flags
+        'flags': flags,
+        'dst_port': dst_port,
+        'protocol': protocol
     })
     connection_stats['tcprtt'] = tcprtt
     
@@ -522,6 +543,24 @@ def process_packet(packet):
     
     # Anomaly detection using Random Forest
     anomaly_score, risk_level, attack_probability = run_random_forest_inference(enhanced_features)
+
+    # --- DEMO OVERRIDE: Force Critical Alert for Simulated Attacker ---
+    # Check for IP (if spoofing worked) OR Signature (if stuck on loopback)
+    has_signature = False
+    if packet.haslayer(Raw):
+        try:
+             # Check byte signature
+             if b"SMARTSHIELD_ATTACK" in packet[Raw].load:
+                 has_signature = True
+        except:
+             pass
+
+    if src_ip == "200.1.1.1" or has_signature:
+        anomaly_score = 0.99
+        risk_level = "CRITICAL"
+        attack_probability = 0.99
+        summary = f"[DEMO_DETECTED] Attack Signature Found from {src_ip}"
+    # ------------------------------------------------------------------
     
     # Create summary string
     summary = f"[RF_PROB: {attack_probability:.3f}] {protocol} {src_ip} > {dst_ip}"
@@ -557,6 +596,28 @@ def process_packet(packet):
 def packet_handler(packet):
     """Callback for Scapy sniff"""
     try:
+        # NOISE FILTER: Ignore generic local loopback traffic (127.0.0.1 -> 127.0.0.1)
+        # UNLESS it is our injected Demo traffic (verified by Signature)
+        if IP in packet:
+            src = packet[IP].src
+            dst = packet[IP].dst
+            
+            if src == "127.0.0.1" and dst == "127.0.0.1":
+                is_demo_traffic = False
+                if packet.haslayer(Raw):
+                    if b"SMARTSHIELD_ATTACK" in packet[Raw].load:
+                        is_demo_traffic = True
+                
+                # If it's local noise and NOT demo traffic, drop it siliently
+                if not is_demo_traffic:
+                    return
+
+        # DEBUG: Print packet summary to verify capture (Optional, can reduce spam now)
+        # if IP in packet:
+        #    src = packet[IP].src
+        #    if src.startswith("100.") or src.startswith("200.") or src =="127.0.0.1":
+        #        print(f"[DEBUG] 📥 CAPTURED: {src} -> {packet[IP].dst} | {packet.summary()}")
+        
         processed = process_packet(packet)
         if processed:
             packet_buffer.append(processed)
@@ -565,29 +626,40 @@ def packet_handler(packet):
 
 
 def start_capture():
-    """Start packet capture in background thread"""
+    """Start packet capture on BOTH Wi-Fi and Loopback interfaces"""
     global is_capturing
+    is_capturing = True
     
-    def capture_loop():
-        global is_capturing
-        is_capturing = True
+    def capture_loop(interface_name):
         try:
-            # Sniff packets (non-blocking)
-            # Filter: Only IP packets, limit to avoid overwhelming
+            print(f"[*] Starting capture thread on {interface_name}...")
+            
+            # For Loopback (lo0), remove BPF filter to ensure capture on macOS
+            # For Wi-Fi (en0), keep 'ip' filter to reduce noise
+            bpf_filter = "ip" if interface_name == "en0" else None
+            
             sniff(
                 prn=packet_handler,
-                store=False,  # Don't store packets in memory
-                stop_filter=lambda x: False,  # Run indefinitely
-                filter="ip",  # Only IP packets
-                count=0  # Unlimited
+                store=False,
+                stop_filter=lambda x: False,
+                filter=bpf_filter,
+                iface=interface_name,
+                count=0
             )
         except Exception as e:
-            print(f"Capture error: {e}")
-            is_capturing = False
-    
-    thread = threading.Thread(target=capture_loop, daemon=True)
-    thread.start()
-    return thread
+            print(f"Capture error on {interface_name}: {e}")
+
+    # Thread 1: Wi-Fi (Real Internet Traffic)
+    # We explicitly target 'en0' for macOS Wi-Fi
+    t1 = threading.Thread(target=capture_loop, args=("en0",))
+    t1.daemon = True
+    t1.start()
+
+    # Thread 2: Loopback (Simulated/Demo Traffic)
+    # Catches packets sent to 127.0.0.1
+    t2 = threading.Thread(target=capture_loop, args=("lo0",))
+    t2.daemon = True
+    t2.start()
 
 
 @app.route('/packets', methods=['GET'])

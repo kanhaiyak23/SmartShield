@@ -1,0 +1,209 @@
+[Parallel(n_jobs=8)]: Using backend ThreadingBackend with 8 concurrent workers.
+[Parallel(n_jobs=8)]: Done  34 tasks      | elapsed:    0.0s
+[Parallel(n_jobs=8)]: Done 184 tasks      | elapsed:    0.1s
+[Parallel(n_jobs=8)]: Done 200 out of 200 | elapsed:    0.1s finished
+[Parallel(n_jobs=8)]: Using backend ThreadingBackend with 8 concurrent workers.
+[Parallel(n_jobs=8)]: Done  34 tasks      | elapsed:    0.0s
+[Parallel(n_jobs=8)]: Done 184 tasks      | elapsed:    0.2s
+[Parallel(n_jobs=8)]: Done 200 out of 200 | elapsed:    0.2s finished
+======================================================================
+Model Evaluation: Threshold Comparison
+Target: >= 95% Recall, < 5% False Positive Rate
+======================================================================
+
+Loading model...
+✅ Model loaded
+Loading test dataset from data/UNSW_NB15_testing-set.csv...
+✅ Loaded 175341 test records
+Using first 50,000 records...
+
+Extracting features...
+
+Extracting enhanced features...
+✅ Extracted 50000 feature vectors
+Test Set: 50000 samples
+  Normal: 47911
+  Attacks: 2089
+
+Scaling features...
+
+======================================================================
+PERFORMANCE COMPARISON
+======================================================================
+
+======================================================================
+Threshold: 0.56 - High Recall Mode (Recommended for Security)
+======================================================================
+
+📊 PERFORMANCE METRICS
+   Accuracy:  0.8665 (86.65%)
+   Precision: 0.2370 (23.70%)
+   Recall:    0.9895 (98.95%) ✅
+   F1-Score:  0.3824 (38.24%)
+   FPR:       0.1389 (13.89%) ❌
+
+📋 CONFUSION MATRIX
+                  Predicted
+                Normal  Attack
+Actual Normal    41256   6655
+      Attack        22   2067
+
+✅ Enterprise Criteria Check:
+   Recall >= 95%: ✅ YES
+   FPR < 5%:      ❌ NO
+   Both criteria: ❌ NO (Model Limitation)
+
+⚠️  Trade-off Analysis:
+   - High attack detection rate achieved
+   - False positive rate is high (may cause alert fatigue)
+   - Recommendation: Use with post-processing filters
+
+======================================================================
+Threshold: 0.78 - High Precision Mode (Low False Positives)
+======================================================================
+
+📊 PERFORMANCE METRICS
+   Accuracy:  0.9341 (93.41%)
+   Precision: 0.2735 (27.35%)
+   Recall:    0.3480 (34.80%) ❌
+   F1-Score:  0.3063 (30.63%)
+   FPR:       0.0403 (4.03%) ✅
+
+📋 CONFUSION MATRIX
+                  Predicted
+                Normal  Attack
+Actual Normal    45980   1931
+      Attack      1362    727
+
+✅ Enterprise Criteria Check:
+   Recall >= 95%: ❌ NO
+   FPR < 5%:      ✅ YES
+   Both criteria: ❌ NO (Model Limitation)
+
+⚠️  Trade-off Analysis:
+   - Low false positive rate achieved
+   - Attack detection rate is low (misses many attacks)
+   - Recommendation: Use with additional detection layers
+
+======================================================================
+SUMMARY & RECOMMENDATIONS
+======================================================================
+
+⚠️  IMPORTANT FINDING:
+   This model CANNOT achieve both >= 95% recall AND < 5% FPR
+   simultaneously with a single threshold. This is a fundamental
+   limitation of the model on this dataset.
+
+📊 Mode Comparison:
+
+   Mode                      Recall       FPR          Best For
+   ----------------------------------------------------------------------
+   Recommended for Security   98.95%     13.89%    High Recall Mode
+   Low False Positives        34.80%      4.03%    High Precision Mode
+
+✅ RECOMMENDED CONFIGURATION:
+   Use HIGH_RECALL_MODE (threshold=0.56) with the following:
+   1. Post-processing filters to reduce false positives
+   2. Whitelisting for known safe traffic patterns
+   3. Alert correlation to suppress repeated alerts
+   4. Human review queue for flagged packets
+
+   This gives you 98.95% attack detection while managing
+   false positives through operational processes.
+
+======================================================================
+[Parallel(n_jobs=8)]: Using backend ThreadingBackend with 8 concurrent workers.
+[Parallel(n_jobs=8)]: Done  34 tasks      | elapsed:    0.1s
+[Parallel(n_jobs=8)]: Done 184 tasks      | elapsed:    0.3s
+[Parallel(n_jobs=8)]: Done 200 out of 200 | elapsed:    0.3s finished
+======================================================================
+Enhanced Random Forest Model Evaluation
+======================================================================
+
+Loading trained model...
+✅ Model and components loaded
+   Model: 200 trees, 20 features
+Loading test dataset from data/UNSW_NB15_testing-set.csv...
+✅ Loaded 175341 test records
+
+Using first 50,000 records for evaluation...
+
+Extracting enhanced features...
+✅ Extracted 50000 feature vectors
+
+Test Set: 50000 samples
+  Normal: 47911 (95.8%)
+  Attacks: 2089 (4.2%)
+
+Scaling features...
+Making predictions...
+Using threshold: 0.78 (Low FPR mode)
+Alternative threshold: 0.56 (High Recall mode)
+
+======================================================================
+EVALUATION RESULTS
+======================================================================
+
+📊 PERFORMANCE METRICS
+   Accuracy:  0.9341 (93.41%)
+   Precision: 0.2735 (27.35%)
+   Recall:    0.3480 (34.80%)
+   F1-Score:  0.3063 (30.63%)
+   ROC-AUC:   0.9250
+
+📋 CONFUSION MATRIX
+                  Predicted
+                Normal  Attack
+Actual Normal    45980   1931
+      Attack      1362    727
+
+📈 DETAILED RATES
+   True Positive Rate (Sensitivity):  0.3480 (34.80%)
+   True Negative Rate (Specificity): 0.9597 (95.97%)
+   False Positive Rate:                0.0403 (4.03%)
+   False Negative Rate:                0.6520 (65.20%)
+
+📝 CLASSIFICATION REPORT
+              precision    recall  f1-score   support
+
+      Normal       0.97      0.96      0.97     47911
+      Attack       0.27      0.35      0.31      2089
+
+    accuracy                           0.93     50000
+   macro avg       0.62      0.65      0.64     50000
+weighted avg       0.94      0.93      0.94     50000
+
+
+⚠️  RISK LEVEL ANALYSIS
+   SAFE    :  40280 (80.56%)
+   WARNING :   3236 ( 6.47%)
+   CRITICAL:   6484 (12.97%)
+
+🔍 ATTACK DETECTION BY RISK LEVEL
+   SAFE    :    3 attacks / 40280 total ( 0.01%)
+   WARNING :  709 attacks /  3236 total (21.91%)
+   CRITICAL: 1377 attacks /  6484 total (21.24%)
+
+🎯 TOP 10 MOST IMPORTANT FEATURES
+    1. ttl                 : 0.2916
+    2. mean_packet_size    : 0.1591
+    3. length              : 0.1289
+    4. duration            : 0.0749
+    5. tcp_rtt             : 0.0654
+    6. packet_rate         : 0.0518
+    7. byte_rate           : 0.0487
+    8. state               : 0.0370
+    9. dpkts               : 0.0325
+   10. total_packets       : 0.0300
+
+======================================================================
+✅ Evaluation Complete!
+======================================================================
+
+📊 SUMMARY
+   Model successfully detected 727 out of 2089 attacks
+   Detection Rate: 34.80%
+   False Alarms: 1931 out of 47911 normal packets
+   False Alarm Rate: 4.03%
+
+⚠️  Model may need further tuning.

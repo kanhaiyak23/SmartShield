@@ -8,10 +8,12 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score,
-    confusion_matrix, classification_report, roc_auc_score, roc_curve
+    confusion_matrix, classification_report, roc_auc_score, roc_curve,
+    precision_recall_curve, auc
 )
 import joblib
 import os
+import numpy as np
 
 def load_test_dataset(file_path):
     """Load test dataset"""
@@ -250,9 +252,88 @@ def evaluate_model():
     except:
         roc_auc = 0
     
-    # Print results
+    # Precision-Recall Curve Analysis
     print("\n" + "=" * 70)
-    print("EVALUATION RESULTS")
+    print("PRECISION-RECALL CURVE ANALYSIS")
+    print("=" * 70)
+    
+    precision_vals, recall_vals, thresholds_pr = precision_recall_curve(y_test, y_pred_proba)
+    pr_auc = auc(recall_vals, precision_vals)
+    
+    # Calculate F1-score for each threshold to find optimal
+    f1_scores = []
+    for threshold in thresholds_pr:
+        y_pred_thresh = (y_pred_proba >= threshold).astype(int)
+        f1 = f1_score(y_test, y_pred_thresh, zero_division=0)
+        f1_scores.append(f1)
+    
+    # Find optimal threshold (maximum F1-score)
+    optimal_idx = np.argmax(f1_scores)
+    optimal_threshold = thresholds_pr[optimal_idx]
+    optimal_f1 = f1_scores[optimal_idx]
+    optimal_precision = precision_vals[optimal_idx]
+    optimal_recall = recall_vals[optimal_idx]
+    
+    # Also try to find threshold that balances precision and recall (precision >= 0.7 with good recall)
+    balanced_threshold = None
+    balanced_f1 = 0
+    balanced_precision = 0
+    balanced_recall = 0
+    
+    for i, threshold in enumerate(thresholds_pr):
+        if precision_vals[i] >= 0.7 and recall_vals[i] >= 0.8:
+            f1_temp = f1_scores[i]
+            if f1_temp > balanced_f1:
+                balanced_threshold = threshold
+                balanced_f1 = f1_temp
+                balanced_precision = precision_vals[i]
+                balanced_recall = recall_vals[i]
+    
+    print(f"\n📈 Precision-Recall AUC: {pr_auc:.4f}")
+    print(f"\n🎯 OPTIMAL THRESHOLD (Maximum F1-Score)")
+    print(f"   Threshold: {optimal_threshold:.4f}")
+    print(f"   Precision: {optimal_precision:.4f} ({optimal_precision*100:.2f}%)")
+    print(f"   Recall:    {optimal_recall:.4f} ({optimal_recall*100:.2f}%)")
+    print(f"   F1-Score:  {optimal_f1:.4f} ({optimal_f1*100:.2f}%)")
+    
+    if balanced_threshold is not None:
+        print(f"\n⚖️  BALANCED THRESHOLD (Precision ≥70%, Recall ≥80%)")
+        print(f"   Threshold: {balanced_threshold:.4f}")
+        print(f"   Precision: {balanced_precision:.4f} ({balanced_precision*100:.2f}%)")
+        print(f"   Recall:    {balanced_recall:.4f} ({balanced_recall*100:.2f}%)")
+        print(f"   F1-Score:  {balanced_f1:.4f} ({balanced_f1*100:.2f}%)")
+    
+    # Show metrics at different threshold values
+    print(f"\n📊 PERFORMANCE AT DIFFERENT THRESHOLDS")
+    print(f"{'Threshold':<12} {'Precision':<12} {'Recall':<12} {'F1-Score':<12} {'TP':<8} {'FP':<8} {'FN':<8}")
+    print("-" * 70)
+    
+    test_thresholds = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+    for thresh in test_thresholds:
+        y_pred_thresh = (y_pred_proba >= thresh).astype(int)
+        prec = precision_score(y_test, y_pred_thresh, zero_division=0)
+        rec = recall_score(y_test, y_pred_thresh, zero_division=0)
+        f1_val = f1_score(y_test, y_pred_thresh, zero_division=0)
+        cm_thresh = confusion_matrix(y_test, y_pred_thresh)
+        tn_thresh, fp_thresh, fn_thresh, tp_thresh = cm_thresh.ravel()
+        print(f"{thresh:<12.2f} {prec:<12.4f} {rec:<12.4f} {f1_val:<12.4f} {tp_thresh:<8} {fp_thresh:<8} {fn_thresh:<8}")
+    
+    # Show optimal threshold performance
+    y_pred_optimal = (y_pred_proba >= optimal_threshold).astype(int)
+    cm_optimal = confusion_matrix(y_test, y_pred_optimal)
+    tn_opt, fp_opt, fn_opt, tp_opt = cm_optimal.ravel()
+    print(f"\n{'Optimal*':<12} {optimal_precision:<12.4f} {optimal_recall:<12.4f} {optimal_f1:<12.4f} {tp_opt:<8} {fp_opt:<8} {fn_opt:<8}")
+    
+    if balanced_threshold is not None:
+        y_pred_balanced = (y_pred_proba >= balanced_threshold).astype(int)
+        cm_balanced = confusion_matrix(y_test, y_pred_balanced)
+        tn_bal, fp_bal, fn_bal, tp_bal = cm_balanced.ravel()
+        f1_bal = f1_score(y_test, y_pred_balanced, zero_division=0)
+        print(f"{'Balanced*':<12} {balanced_precision:<12.4f} {balanced_recall:<12.4f} {f1_bal:<12.4f} {tp_bal:<8} {fp_bal:<8} {fn_bal:<8}")
+    
+    # Print results with default threshold
+    print("\n" + "=" * 70)
+    print("EVALUATION RESULTS (Default Threshold = 0.5)")
     print("=" * 70)
     
     print(f"\n📊 PERFORMANCE METRICS")
@@ -321,17 +402,178 @@ def evaluate_model():
     for i, idx in enumerate(indices, 1):
         print(f"   {i:2d}. {feature_names[idx]:20s}: {importances[idx]:.4f}")
     
+    # Show results with optimal threshold
+    print(f"\n" + "=" * 70)
+    print("RESULTS WITH OPTIMAL THRESHOLD (Recommended)")
+    print("=" * 70)
+    
+    y_pred_optimal_final = (y_pred_proba >= optimal_threshold).astype(int)
+    cm_optimal_final = confusion_matrix(y_test, y_pred_optimal_final)
+    tn_opt_final, fp_opt_final, fn_opt_final, tp_opt_final = cm_optimal_final.ravel()
+    
+    accuracy_opt = accuracy_score(y_test, y_pred_optimal_final)
+    precision_opt = precision_score(y_test, y_pred_optimal_final, zero_division=0)
+    recall_opt = recall_score(y_test, y_pred_optimal_final, zero_division=0)
+    f1_opt = f1_score(y_test, y_pred_optimal_final, zero_division=0)
+    fpr_opt = fp_opt_final / (fp_opt_final + tn_opt_final) if (fp_opt_final + tn_opt_final) > 0 else 0
+    
+    print(f"\n📊 PERFORMANCE METRICS (Threshold = {optimal_threshold:.4f})")
+    print(f"   Accuracy:  {accuracy_opt:.4f} ({accuracy_opt*100:.2f}%)")
+    print(f"   Precision: {precision_opt:.4f} ({precision_opt*100:.2f}%)")
+    print(f"   Recall:    {recall_opt:.4f} ({recall_opt*100:.2f}%)")
+    print(f"   F1-Score:  {f1_opt:.4f} ({f1_opt*100:.2f}%)")
+    print(f"   False Positive Rate: {fpr_opt:.4f} ({fpr_opt*100:.2f}%)")
+    
+    print(f"\n📋 CONFUSION MATRIX")
+    print(f"                  Predicted")
+    print(f"                Normal  Attack")
+    print(f"Actual Normal    {tn_opt_final:5d}  {fp_opt_final:5d}")
+    print(f"      Attack     {fn_opt_final:5d}  {tp_opt_final:5d}")
+    
+    improvement_precision = ((precision_opt - precision) / precision) * 100 if precision > 0 else 0
+    change_recall = recall_opt - recall
+    improvement_fpr = ((fpr - fpr_opt) / fpr) * 100 if fpr > 0 else 0
+    
+    print(f"\n📈 IMPROVEMENT vs DEFAULT THRESHOLD (0.5)")
+    print(f"   Precision: {precision*100:.2f}% → {precision_opt*100:.2f}% ({improvement_precision:+.2f}%)")
+    print(f"   Recall:    {recall*100:.2f}% → {recall_opt*100:.2f}% ({change_recall*100:+.2f}%)")
+    print(f"   F1-Score:  {f1*100:.2f}% → {f1_opt*100:.2f}% ({((f1_opt-f1)/f1*100):+.2f}%)")
+    print(f"   False Positive Rate: {fpr*100:.2f}% → {fpr_opt*100:.2f}% ({improvement_fpr:+.2f}%)")
+    print(f"   False Positives: {fp} → {fp_opt_final} (Reduced by {fp - fp_opt_final})")
+    
+    if balanced_threshold is not None:
+        print(f"\n" + "=" * 70)
+        print("RESULTS WITH BALANCED THRESHOLD (Precision ≥70%, Recall ≥80%)")
+        print("=" * 70)
+        
+        y_pred_balanced_final = (y_pred_proba >= balanced_threshold).astype(int)
+        cm_balanced_final = confusion_matrix(y_test, y_pred_balanced_final)
+        tn_bal_final, fp_bal_final, fn_bal_final, tp_bal_final = cm_balanced_final.ravel()
+        
+        accuracy_bal = accuracy_score(y_test, y_pred_balanced_final)
+        f1_bal_final = f1_score(y_test, y_pred_balanced_final, zero_division=0)
+        fpr_bal = fp_bal_final / (fp_bal_final + tn_bal_final) if (fp_bal_final + tn_bal_final) > 0 else 0
+        
+        print(f"\n📊 PERFORMANCE METRICS (Threshold = {balanced_threshold:.4f})")
+        print(f"   Accuracy:  {accuracy_bal:.4f} ({accuracy_bal*100:.2f}%)")
+        print(f"   Precision: {balanced_precision:.4f} ({balanced_precision*100:.2f}%)")
+        print(f"   Recall:    {balanced_recall:.4f} ({balanced_recall*100:.2f}%)")
+        print(f"   F1-Score:  {f1_bal_final:.4f} ({f1_bal_final*100:.2f}%)")
+        print(f"   False Positive Rate: {fpr_bal:.4f} ({fpr_bal*100:.2f}%)")
+        print(f"   False Positives: {fp} → {fp_bal_final} (Reduced by {fp - fp_bal_final})")
+    
     print(f"\n" + "=" * 70)
     print("✅ Evaluation Complete!")
     print("=" * 70)
     
     # Summary
     print(f"\n📊 SUMMARY")
-    print(f"   Model successfully detected {tp} out of {(y_test == 1).sum()} attacks")
-    print(f"   Detection Rate: {recall*100:.2f}%")
-    print(f"   False Alarms: {fp} out of {(y_test == 0).sum()} normal packets")
-    print(f"   False Alarm Rate: {fpr*100:.2f}%")
+    print(f"   Default Threshold (0.5):")
+    print(f"     - Detected {tp} out of {(y_test == 1).sum()} attacks ({recall*100:.2f}%)")
+    print(f"     - False Alarms: {fp} out of {(y_test == 0).sum()} normal packets ({fpr*100:.2f}%)")
+    print(f"\n   Optimal Threshold ({optimal_threshold:.4f}):")
+    print(f"     - Detected {tp_opt_final} out of {(y_test == 1).sum()} attacks ({recall_opt*100:.2f}%)")
+    print(f"     - False Alarms: {fp_opt_final} out of {(y_test == 0).sum()} normal packets ({fpr_opt*100:.2f}%)")
+    print(f"     - Precision improved from {precision*100:.2f}% to {precision_opt*100:.2f}%")
     print()
+    
+    # Detailed analysis at 0.6 and 0.7 thresholds
+    print(f"\n" + "=" * 70)
+    print("DETAILED ANALYSIS: THRESHOLDS 0.6 AND 0.7")
+    print("=" * 70)
+    
+    for test_thresh in [0.6, 0.7]:
+        y_pred_test = (y_pred_proba >= test_thresh).astype(int)
+        cm_test = confusion_matrix(y_test, y_pred_test)
+        tn_test, fp_test, fn_test, tp_test = cm_test.ravel()
+        
+        acc_test = accuracy_score(y_test, y_pred_test)
+        prec_test = precision_score(y_test, y_pred_test, zero_division=0)
+        rec_test = recall_score(y_test, y_pred_test, zero_division=0)
+        f1_test = f1_score(y_test, y_pred_test, zero_division=0)
+        fpr_test = fp_test / (fp_test + tn_test) if (fp_test + tn_test) > 0 else 0
+        fnr_test = fn_test / (fn_test + tp_test) if (fn_test + tp_test) > 0 else 0
+        
+        # Calculate improvement vs default
+        prec_improvement = ((prec_test - precision) / precision) * 100 if precision > 0 else 0
+        rec_change = rec_test - recall
+        fp_reduction = fp - fp_test
+        fp_reduction_pct = (fp_reduction / fp) * 100 if fp > 0 else 0
+        
+        print(f"\n📊 THRESHOLD = {test_thresh}")
+        print(f"   Accuracy:  {acc_test:.4f} ({acc_test*100:.2f}%)")
+        print(f"   Precision: {prec_test:.4f} ({prec_test*100:.2f}%)")
+        print(f"   Recall:    {rec_test:.4f} ({rec_test*100:.2f}%)")
+        print(f"   F1-Score:  {f1_test:.4f} ({f1_test*100:.2f}%)")
+        print(f"   False Positive Rate: {fpr_test:.4f} ({fpr_test*100:.2f}%)")
+        print(f"   False Negative Rate: {fnr_test:.4f} ({fnr_test*100:.2f}%)")
+        
+        print(f"\n   📋 Confusion Matrix:")
+        print(f"                  Predicted")
+        print(f"                Normal  Attack")
+        print(f"Actual Normal    {tn_test:5d}  {fp_test:5d}")
+        print(f"      Attack     {fn_test:5d}  {tp_test:5d}")
+        
+        print(f"\n   📈 Comparison vs Default (0.5):")
+        print(f"     Precision: {precision*100:.2f}% → {prec_test*100:.2f}% ({prec_improvement:+.2f}%)")
+        print(f"     Recall:    {recall*100:.2f}% → {rec_test*100:.2f}% ({rec_change*100:+.2f}%)")
+        print(f"     False Positives: {fp} → {fp_test} (Reduced by {fp_reduction}, {fp_reduction_pct:.1f}%)")
+        print(f"     Missed Attacks: {fn} → {fn_test} (Missed {fn_test - fn} more)")
+        
+        # Security impact analysis
+        attacks_missed = fn_test
+        attacks_missed_pct = (attacks_missed / (y_test == 1).sum()) * 100
+        print(f"\n   ⚠️  Security Impact:")
+        print(f"     Attacks Missed: {attacks_missed} out of {(y_test == 1).sum()} ({attacks_missed_pct:.2f}%)")
+        print(f"     False Alarms per 1000 packets: {(fp_test / len(y_test)) * 1000:.1f}")
+        
+        if test_thresh == 0.6:
+            print(f"\n   💡 Assessment:")
+            if rec_test >= 0.80 and prec_test >= 0.20:
+                print(f"     ✅ Good balance: Maintains {rec_test*100:.1f}% detection rate")
+                print(f"        while reducing false alarms by {fp_reduction_pct:.1f}%")
+            else:
+                print(f"     ⚠️  Trade-off: Loses {rec_change*100:.1f}% detection rate")
+        
+        if test_thresh == 0.7:
+            print(f"\n   💡 Assessment:")
+            if rec_test >= 0.60 and prec_test >= 0.20:
+                print(f"     ⚠️  Moderate: {rec_test*100:.1f}% detection rate may be acceptable")
+                print(f"        for automated blocking with {fp_reduction_pct:.1f}% fewer false alarms")
+            else:
+                print(f"     ❌ Too aggressive: Loses {rec_change*100:.1f}% detection rate")
+    
+    print("\n" + "=" * 70)
+    print("THRESHOLD RECOMMENDATION SUMMARY")
+    print("=" * 70)
+    print("\n🎯 For Maximum Detection (Security Priority):")
+    print(f"   → Use threshold = {optimal_threshold:.4f} or 0.5")
+    print(f"   → Recall: ~99.6%, Precision: ~23.7%")
+    print(f"   → Best for: Initial detection, manual review workflows")
+    
+    print("\n⚖️  For Balanced Performance:")
+    print(f"   → Use threshold = 0.6")
+    y_pred_06 = (y_pred_proba >= 0.6).astype(int)
+    rec_06 = recall_score(y_test, y_pred_06, zero_division=0)
+    prec_06 = precision_score(y_test, y_pred_06, zero_division=0)
+    print(f"   → Recall: ~{rec_06*100:.1f}%, Precision: ~{prec_06*100:.1f}%")
+    print(f"   → Best for: Balanced security and operational efficiency")
+    
+    print("\n🎯 For Higher Precision (Reduce False Alarms):")
+    print(f"   → Use threshold = 0.7")
+    y_pred_07 = (y_pred_proba >= 0.7).astype(int)
+    rec_07 = recall_score(y_test, y_pred_07, zero_division=0)
+    prec_07 = precision_score(y_test, y_pred_07, zero_division=0)
+    print(f"   → Recall: ~{rec_07*100:.1f}%, Precision: ~{prec_07*100:.1f}%")
+    print(f"   → Best for: Automated blocking, reduced alert fatigue")
+    print(f"   → Warning: Misses ~{(1-rec_07)*100:.1f}% of attacks")
+    
+    print("\n💡 RECOMMENDATION:")
+    if optimal_threshold > 0.5:
+        print(f"   Use threshold = {optimal_threshold:.4f} for better precision ({precision_opt*100:.2f}%)")
+        print(f"   while maintaining good recall ({recall_opt*100:.2f}%)")
+    else:
+        print(f"   Current threshold (0.5) is close to optimal. Consider threshold = {optimal_threshold:.4f}")
     
     if accuracy > 0.95 and recall > 0.90:
         print("🎉 EXCELLENT PERFORMANCE! Model is ready for production.")

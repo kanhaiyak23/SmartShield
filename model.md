@@ -5,7 +5,7 @@ The core of SmartShield's detection capability is a supervised Machine Learning 
 
 *   **Algorithm**: **Random Forest Classifier** (Ensemble Learning)
 *   **Implementation**: `scikit-learn` (Python)
-*   **Training Dataset**: Derived from **CIC-IDS2017** (Canadian Institute for Cybersecurity Intrusion Detection Dataset), adapted for real-time feature extraction.
+*   **Training Dataset**: Derived from **UNSW-NB15** (University of New South Wales Network Benchmark Dataset), adapted for real-time feature extraction.
 
 ---
 

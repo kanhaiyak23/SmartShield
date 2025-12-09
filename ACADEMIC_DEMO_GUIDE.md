@@ -88,3 +88,4 @@ This guide is designed to walk you through a professional demonstration of the S
 *   **"No Traffic Appearing":** Refresh the page. Ensure backend is running.
 *   **"Counter stuck at 100":** This is a dashboard polling limit, not a bug.
 *   **"Backend Error":** Press Ctrl+C in backend terminal and restart with `sudo ./venv/bin/python3 server.py`.
+
